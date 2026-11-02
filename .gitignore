@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Editor / tools
+.idea/
+.ruff_cache/
+.DS_Store
+
+# Teslim paketi
+hough_odev_teslim.zip
+sozlu_hazirlik.md

@@ -1,0 +1,5 @@
+Kenar piksel: 9166
+CPU: 2.589 s
+GPU: 0.0031 s
+Hizlanma: 845.1 kat
+Ayni mi: True

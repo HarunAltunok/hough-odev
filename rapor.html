@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Hough Dönüşümü Raporu</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; color: #111; background: #fff; }
+  h1 { font-size: 17pt; margin: 0 0 2mm; }
+  h2 { font-size: 12.5pt; margin: 6mm 0 2mm; border-bottom: 1px solid #ccc; padding-bottom: 1mm; }
+  .alt { color: #555; margin-bottom: 4mm; }
+  .ikili { display: flex; gap: 4mm; }
+  .ikili figure { flex: 1; margin: 0; }
+  img { width: 100%; border: 1px solid #ddd; }
+  figcaption { font-size: 8.5pt; color: #555; text-align: center; }
+  table { border-collapse: collapse; width: 100%; font-size: 9.5pt; }
+  th, td { border: 1px solid #bbb; padding: 1.2mm 2mm; text-align: left; }
+  th { background: #f0f0f0; }
+  .bos { background: #fff7d6; }
+  .tek { width: 62%; margin: 0 auto; }
+  figure, table { break-inside: avoid; }
+  code { font-size: 9pt; }
+</style>
+</head>
+<body>
+
+<h1>Hough Dönüşümü ile Doğru ve Çember Bulma</h1>
+<div class="alt">Görüntü İşleme ödevi · Python (uv), OpenCV yalnız okuma, median, Canny ve çizim için (madde 1 ve 3 hariç)</div>
+
+<p><b>Ön işlem:</b> Her resim 1024x768'e getirildi. Ödev metnine uygun olarak madde 1 ve 3'te
+Canny (50/150) → <i>kenar resmine</i> 3x3 median → OpenCV Hough; madde 2, 4, 5 ve 6'da Canny → kendi Hough kodumuz.</p>
+
+<h2>Madde 1 – OpenCV HoughLines ve HoughLinesP</h2>
+<div class="tek"><figure><img src="outputs/madde1_dogrular.png"><figcaption>Kırmızı: HoughLines (sonsuz doğru), yeşil: HoughLinesP (parça)</figcaption></figure></div>
+<p><b>Gözlem:</b> Median kenar resmine uygulanınca tek başına duran gürültü pikselleriyle birlikte 1 piksel
+kalınlığındaki ince kenarların çoğu da siliniyor (9166 → 2121 kenar pikseli, %77), çünkü çizgi pikselinin
+3x3 komşuluğunda çoğunluk siyah. Bu yüzden eşikler düşürüldü (HoughLines 40, HoughLinesP 20). HoughLines
+doğruyu (rho, theta) olarak verir, resim boyunca sonsuz çizilir: çentiklerin kalınlaştırdığı için median'dan sağ
+çıkan cetvel üst kenarı bulundu (1 doğru); alt kenar median'da silindiği için bulunamadı. HoughLinesP uç noktalı
+<i>parçalar</i> verir: üst kenar kesik kesik 9 parça, bir para kenarında da 1 sahte parça.</p>
+
+<h2>Madde 2 – Kendi Hough doğru kodum</h2>
+<div class="ikili">
+  <figure><img src="outputs/madde2_oylama_matrisi.png"><figcaption>Oylama matrisi (rho × theta), tepeler numaralı</figcaption></figure>
+  <figure><img src="outputs/madde2_dogrular.png"><figcaption>Aynı numaralarla bulunan doğrular</figcaption></figure>
+</div>
+<p>sin/cos tabloları döngüden önce bir kez hesaplandı; her kenar pikseli 180 theta için
+<code>rho = x·cos + y·sin</code> hücresine +1 oy verdi. Matristeki her kenar pikseli bir sinüs eğrisi çizer;
+eğrilerin kesiştiği <b>parlak tepe sayısı = doğru sayısı</b>: eşik 150 üstünde 2 tepe, resimde 2 doğru
+(1: rho=614, θ=76°, 235 oy; 2: rho=697, θ=76°, 197 oy). İki tepenin θ'sı aynı, çünkü cetvelin iki kenarı paralel.
+Median uygulanmadığı için iki kenar da bulundu (madde 1'de alt kenar median'da kaybolmuştu); komşu hücreler
+bastırıldığı için aynı doğru iki kez çizilmedi. Süre: ~1.1 s (OpenCV: ~0.01 s).</p>
+
+<h2>Madde 3 – OpenCV HoughCircles</h2>
+<div class="ikili">
+  <figure><img src="outputs/madde3_cemberler.png"><figcaption>HoughCircles, her çember ayrı renk</figcaption></figure>
+  <figure><img src="outputs/madde4_cemberler.png"><figcaption>Madde 4: kendi kodum, aynı resim</figcaption></figure>
+</div>
+<p>HoughCircles'a Canny → median'dan geçmiş kenar resmi verildi. Median çemberleri kesik kesik bıraktığı için
+oy eşiği düşürüldü (param2 = 15; 10'da sahte çemberler çıktı). 5 paranın hepsi bulundu, sahte çember yok;
+yarıçaplar gerçeğinden 3–10 piksel küçük, çünkü median dış kenarı daha çok seyreltti.</p>
+
+<h2>Madde 4 – Kendi Hough çember kodum</h2>
+<div class="tek"><figure><img src="outputs/madde4_oylama_katmani.png"><figcaption>En çok oy alan r katmanı (a × b)</figcaption></figure></div>
+<p>3 boyutlu oylama matrisi [a, b, r]: her kenar pikseli, her r ve 0–359° için <code>a = x − r·cos</code>,
+<code>b = y − r·sin</code> merkezine oy verdi. Çemberin 3 bilinmeyeni (merkez x, y, yarıçap) olduğu için 3 boyut gerekir.
+Saf Python döngüsü yavaş olduğundan resim <b>0.5 oranında küçültüldü (512x384)</b> ve yarıçap 22–40 (küçük resimde)
+aralığına daraltıldı; sonuçlar orijinal boyuta geri ölçeklendi. 5 paranın hepsi bulundu; 4'ünde merkez ve yarıçap
+gerçeğiyle 1 piksel içinde, sağ üstteki parada ise kenar yerine iç kabartma (r=54, gerçek 65) seçildi.
+Süre: ~27 s (OpenCV: ~0.01 s).</p>
+
+<h2>Madde 5 – Sadece iç içe çemberler</h2>
+<div class="ikili">
+  <figure><img src="outputs/madde5_merkez_puani.png"><figcaption>Merkez puanı: hedef 3, tek para 1</figcaption></figure>
+  <figure><img src="outputs/madde5_ic_ice.png"><figcaption>Yalnız iç içe grup işaretlendi; tek para işaretlenmedi</figcaption></figure>
+</div>
+<p>Madde 4'teki 3B oylama aynen yapıldı; ardından her merkez (a, b) için <b>puan = o merkezde yeterli oy alan farklı
+yarıçap sayısı</b> hesaplandı (yeterli: oy ≥ 0.5 × 2πr, çünkü büyük çember daha çok pikselden oy alır). En az 2 yarıçap şartı var.
+Tek duran paranın merkezi yalnız r=80'de oy topladığı için puanı 1 kalıyor ve seçilemiyor; hedefin merkezi
+r = 50, 100, 150'de oy topluyor, puanı 3. Bu post processing değildir: çemberler hiç tek tek bulunup gruplanmıyor,
+eş merkezlilik kararı doğrudan oylama matrisinden merkez başına veriliyor. Resim 0.5 oranında küçültüldü
+(0.25'te kenarlar kalınlaşıp sahte merkezler çıktı). Süre: ~31 s.</p>
+
+<h2>Madde 6 – CUDA (Colab T4) ve süre karşılaştırması</h2>
+<p>Madde 2'nin oylaması <code>numba.cuda</code> ile paralel yapıldı: her thread bir kenar pikseli alır, 180 theta için
+oy verir; aynı hücreye aynı anda yazan thread'lerin oyu kaybolmasın diye <code>cuda.atomic.add</code> kullanıldı.
+Colab'da Tesla T4 üzerinde çalıştırıldı: 9166 kenar pikseli × 180 theta = 1.649.880 oy; CPU ve GPU oylama
+matrisleri <code>np.array_equal</code> ile karşılaştırıldı ve <b>birebir aynı</b> çıktı (iki tarafta da 1.649.880 oy).</p>
+
+<table>
+  <tr><th>Madde</th><th>Yöntem</th><th>Resim</th><th>Süre</th></tr>
+  <tr><td>1</td><td>cv2.HoughLines + HoughLinesP</td><td>1024x768</td><td>0.01 s</td></tr>
+  <tr><td>2</td><td>Kendi doğru Hough (Python, CPU)</td><td>1024x768, 9166 kenar pikseli</td><td>1.1 s</td></tr>
+  <tr><td>3</td><td>cv2.HoughCircles</td><td>1024x768</td><td>0.01 s</td></tr>
+  <tr><td>4</td><td>Kendi çember Hough (Python, CPU)</td><td>512x384</td><td>27 s</td></tr>
+  <tr><td>5</td><td>Kendi iç içe çember (Python, CPU)</td><td>512x384</td><td>31 s</td></tr>
+  <tr><td>6</td><td>Madde 2 oylaması, Colab CPU (saf Python)</td><td>1024x768, 9166 kenar pikseli</td><td>2.589 s</td></tr>
+  <tr><td>6</td><td>Madde 2 oylaması, Colab T4 GPU (numba.cuda)</td><td>1024x768, 9166 kenar pikseli</td><td>0.0031 s · ~845 kat hızlı</td></tr>
+</table>
+<p>OpenCV fonksiyonları C++ ile yazıldığı için saf Python döngülerimizden yüzlerce kat hızlı. GPU'da binlerce kenar
+pikseli aynı anda işlendiği için oylama 2.589 s'den 0.0031 s'ye indi (veri kopyalama dahil; ilk çağrıdaki derleme hariç).</p>
+<p><b>Notlar:</b> (1) 845 kat, <i>yorumlanan saf Python</i> döngüsüne göre; derlenmiş bir CPU koduyla
+(ör. <code>numba.njit</code>) karşılaştırılsaydı fark çok daha küçük olurdu. (2) GPU süresi tek ölçüm; 3 ms
+çok kısa olduğu için çalıştırmadan çalıştırmaya oynayabilir. (3) numba "Grid size 36" uyarısı verdi: 9166 piksel
+256'lık bloklara bölününce 36 blok çıkıyor, bu T4'ü tam doldurmaya yetmiyor; hata değil, iş küçük olduğu için.</p>
+
+</body>
+</html>
